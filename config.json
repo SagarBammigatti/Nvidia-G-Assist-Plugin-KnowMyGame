@@ -1,0 +1,10 @@
+{
+  "env": {
+    "GEMINI_API_KEY": "YOUR_GEMINI_API_KEY"
+  },
+  "settings": {
+    "log_level": "info"
+  },
+  "plugin_name": "KnowMyGame",
+  "version": "1.0"
+}

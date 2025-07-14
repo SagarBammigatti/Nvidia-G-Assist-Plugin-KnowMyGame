@@ -1,0 +1,44 @@
+{
+  "manifestVersion": 1,
+  "executable": "./KnowMyGame.exe",
+  "persistent": true,
+  "functions": [
+    {
+      "name": "get_game_price_rating",
+      "description": "Retrieve a game's current price and user rating from the Steam store.",
+      "tags": ["games", "steam", "pricing", "reviews"],
+      "properties": {
+        "game_name": {
+          "type": "string",
+          "description": "The exact name of the game to search for on Steam."
+        }
+      }
+    },
+    {
+      "name": "recommend_game_settings",
+      "description": "Recommend optimal game graphics settings based on user's hardware specifications.",
+      "tags": ["optimization", "performance", "graphics"],
+      "properties": {
+        "game_name": {
+          "type": "string",
+          "description": "The name of the game for which to optimize settings."
+        }
+      }
+    },
+    {
+      "name": "find_video_walkthrough",
+      "description": "Find a YouTube video walkthrough for a specific in-game situation using Gemini AI for context understanding and timestamp extraction.",
+      "tags": ["walkthrough", "video", "youtube", "help"],
+      "properties": {
+        "game_name": {
+          "type": "string",
+          "description": "Name of the game."
+        },
+        "question": {
+          "type": "string",
+          "description": "Detailed description of the in-game situation needing help."
+        }
+      }
+    }
+  ]
+}
