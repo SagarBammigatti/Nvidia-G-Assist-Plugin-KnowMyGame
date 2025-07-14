@@ -1,4 +1,4 @@
-# 🎮 G-Assist Plugin: Game Companion
+# 🎮 G-Assist Plugin: KnowMyGame - A Game Companion
 
 This G-Assist Plugin provides three intelligent tools for gamers:
 1. **Game Price & Ratings Lookup** – via Steam API
