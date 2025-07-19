@@ -9,33 +9,8 @@ from logger import get_logger
 from thefuzz import process
 import concurrent.futures
 import time
-import platform
-import psutil
+
 logger = get_logger("KnowMyGame")
-
-
-try:
-    import GPUtil
-except ImportError:
-    GPUtil = None  # Optional GPU detection
-
-def get_local_system_specs():
-    cpu = platform.processor() or platform.uname().processor or "Unknown CPU"
-    ram_gb = round(psutil.virtual_memory().total / (1024 ** 3))
-    ram = f"{ram_gb}GB"
-
-    gpu = "Unknown GPU"
-    if GPUtil:
-        gpus = GPUtil.getGPUs()
-        if gpus:
-            gpu = gpus[0].name
-
-    return {
-        "cpu": cpu,
-        "gpu": gpu,
-        "ram": ram
-    }
-
 
 # Load Configuration
 def get_config_path():
@@ -196,13 +171,13 @@ def write_response(response: Response) -> None:
     except Exception as e:
         logger.error(f'Failed to write response: {str(e)}')
 
-def generate_failure_response(message: str = None) -> dict[str, bool | str]:
+def generate_failure_response(message: str = None) -> Response:
     response = {'success': False}
     if message:
         response['message'] = message
     return response
 
-def generate_success_response(message: str = None) -> dict[str, bool | str]:
+def generate_success_response(message: str = None) -> Response:
     response = {'success': True}
     if message:
         response['message'] = message
@@ -270,24 +245,25 @@ def execute_game_price_rating(params: dict = None, context: dict = None, system_
     except Exception as e:
         return generate_failure_response(str(e))
 
-def execute_game_settings(params: dict = None, context: dict = None, system_info: dict | str = None) -> dict:
+def execute_game_settings(params: dict = None, context: dict = None, system_info: dict = None) -> dict:
     game_name = params.get("game_name")
+
     if not game_name:
         return generate_failure_response("Missing 'game_name'.")
 
-    try:
-        specs = get_local_system_specs()
+    # If system_info is a string (as sent by G-Assist), extract some info or include it directly
+    if isinstance(system_info, str):
+        formatted_specs = f"System Info:\n{system_info}"
+    elif isinstance(system_info, dict):
         formatted_specs = (
-            f"CPU: {specs['cpu']}\n"
-            f"GPU: {specs['gpu']}\n"
-            f"RAM: {specs['ram']}"
+            f"CPU: {system_info.get('cpu', 'Unknown')}\n"
+            f"GPU: {system_info.get('gpu', 'Unknown')}\n"
+            f"RAM: {system_info.get('ram', 'Unknown')}"
         )
+    else:
+        return generate_failure_response("Invalid or missing 'system_info'.")
 
-        if isinstance(system_info, str):
-            formatted_specs += f"\n\nAdditional Info:\n{system_info}"
-
-        logger.info(f'System Info:\n{formatted_specs}')
-
+    try:
         prompt = (
             f"{formatted_specs}\n\n"
             f"Recommend optimal graphics settings for the game '{game_name}' "
