@@ -1,36 +1,48 @@
 # 🎮 G-Assist Plugin: KnowMyGame - A Game Companion
 
 This G-Assist Plugin provides three intelligent tools for gamers:
-1. **Game Price & Ratings Lookup** – via Steam API
-2. **Hardware-Aware Graphics Settings** – via Google Gemini
-3. **Walkthrough Video Search with Timestamps** – powered by Gemini + YouTube
+
+1. **🎯 Game Price & Ratings Lookup** – via Steam API  
+2. **⚙️ Hardware-Aware Graphics Settings** – via Google Gemini + automatic hardware detection  
+3. **📺 Walkthrough Video Search with Timestamps** – powered by Gemini + YouTube context
 
 ---
 
 ## 🔧 Setup Instructions
 
-### 1. Clone / Place the Plugin Files
+### 1. Plugin Files
+
 Ensure the following files exist in your plugin directory:
+
 - `plugin.py`
 - `manifest.json`
 - `requirements.txt`
 - `config.json`
 
+---
+
 ### 2. Install Dependencies
+
 Use Python 3.7+ (3.12 preferred) and run:
 
 ```bash
 pip install -r requirements.txt
 ```
 
+---
+
 ### 3. Configure Gemini API
-Create a Google API key from [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 
-Then set the key in your environment:
+Create an API key from [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 
-In you config.json file, update
-```
-GEMINI_API_KEY=your-api-key
+Then update `config.json` with your key:
+
+```json
+{
+  "env": {
+    "GEMINI_API_KEY": "your-api-key-here"
+  }
+}
 ```
 
 ---
@@ -38,9 +50,10 @@ GEMINI_API_KEY=your-api-key
 ## 🚀 Plugin Functions
 
 ### `get_game_price_rating`
+
 **Description:** Retrieves Steam price and review score.
 
-#### Parameters:
+**Parameters:**
 ```json
 {
   "game_name": "Cyberpunk 2077"
@@ -50,30 +63,25 @@ GEMINI_API_KEY=your-api-key
 ---
 
 ### `recommend_game_settings`
-**Description:** Suggests optimal settings based on user's hardware.
 
-#### Parameters:
+**Description:** Suggests optimal graphics settings based on local system hardware (auto-detected).
+
+**Parameters:**
 ```json
 {
   "game_name": "Elden Ring"
 }
 ```
 
-#### Requires `system_info` structure:
-```json
-{
-  "cpu": "Intel Core i7-11700K",
-  "gpu": "NVIDIA RTX 3070",
-  "ram": "16GB"
-}
-```
+✅ CPU, GPU, and RAM are auto-detected using `platform`, `psutil`, and `GPUtil`.
 
 ---
 
 ### `find_video_walkthrough`
-**Description:** Uses Gemini to find the best YouTube video and timestamp.
 
-#### Parameters:
+**Description:** Uses Gemini to find the best YouTube video for an in-game query.
+
+**Parameters:**
 ```json
 {
   "game_name": "Zelda Breath of the Wild",
@@ -83,98 +91,72 @@ GEMINI_API_KEY=your-api-key
 
 ---
 
-## 🧪 Sample Test Commands (as JSON)
-Simulate tool usage inside a G-Assist dev or test harness:
+## 💬 G-Assist Chat Window Commands
 
-```json
-{
-  "tool_calls": [
-    {
-      "func": "get_game_price_rating",
-      "properties": {
-        "game_name": "Baldur's Gate 3"
-      }
-    }
-  ]
-}
+You can test the plugin in the G-Assist chat with natural commands like:
+
+```bash
+/knowmygame get_game_price_rating Baldur's Gate 3
+/knowmygame recommend_game_settings Red Dead Redemption 2
+/knowmygame find_video_walkthrough Elden Ring How to defeat Malenia phase two
 ```
+
+---
+
+## 🧪 JSON Test Inputs (For Local Development)
+
+You can also simulate tool calls by passing structured input directly to the plugin in JSON:
 
 ```json
 {
   "tool_calls": [
     {
       "func": "recommend_game_settings",
-      "properties": {
-        "game_name": "Red Dead Redemption 2"
-      }
-    }
-  ],
-  "system_info": {
-    "cpu": "AMD Ryzen 5 5600X",
-    "gpu": "NVIDIA RTX 3060 Ti",
-    "ram": "16GB"
-  }
-}
-```
-
-```json
-{
-  "tool_calls": [
-    {
-      "func": "find_video_walkthrough",
-      "properties": {
-        "game_name": "Sekiro",
-        "question": "How to beat Guardian Ape second phase"
+      "params": {
+        "game_name": "Cyberpunk 2077"
       }
     }
   ]
 }
 ```
 
+Pass this JSON via STDIN to your compiled plugin executable.
+
 ---
 
-## 🏗️ Building the Plugin Executable
+## 🛠️ Building the Plugin Executable
 
-### 1. Ensure Dependencies Are Installed
-
-Make sure `pywin32` and `pyinstaller` are working:
+### Step 1: Install Build Tools
 
 ```bash
-pip install pywin32 pyinstaller
+pip install pywin32 pyinstaller psutil gputil
 ```
 
-### 2. Compile with PyInstaller
-
-Run the following command:
+### Step 2: Compile with PyInstaller
 
 ```bash
-pyinstaller --onefile plugin.py -n g-assist-plugin-python.exe
+pyinstaller --onefile plugin.py -n g-assist-plugin-knowmygame.exe
 ```
 
-This will output `g-assist-plugin-python.exe` in the `dist/` folder.
+Find the `.exe` file inside the `dist/` folder.
 
-### 3. Move Executable
+---
 
-#### **1. Create the Plugin Folder**
-First, create a new folder named **KnowMyGame** inside your G-Assist Plugin directory.
+## 📁 Final Deployment Structure
 
-#### **2. Copy the Necessary Files**
-Next, copy the following files into the new **KnowMyGame** folder:
-* The `.exe` file from your `dist` folder.
-* `manifest.json`
-* `config.json`
+Create a `KnowMyGame` folder under your G-Assist plugin directory and copy in:
+
+- `g-assist-plugin-knowmygame.exe` (from `dist/`)
+- `manifest.json`
+- `config.json`
 
 ---
 
 ## 🧠 Troubleshooting
-
-- **Plugin doesn’t respond?**
-  - Check `logs` folder and the corresponding log files in it for errors.
-
-- **Gemini fails?**
-  - Double-check `GEMINI_API_KEY` is correctly set and not expired.
-
-- **Missing system info?**
-  - Ensure your G-Assist instance passes `system_info` with `cpu`, `gpu`, and `ram`.
+All the logs can be found in  C:\ProgramData\NVIDIA Corporation\nvtopps\rise\plugins\knowmygame\logs folder
+Review the logs for more information 
+- **No plugin response?** → Check your logs for Python errors.
+- **Gemini API failing?** → Check your API key and internet access.
+- **System info missing?** → No problem. This plugin detects it automatically.
 
 ---
