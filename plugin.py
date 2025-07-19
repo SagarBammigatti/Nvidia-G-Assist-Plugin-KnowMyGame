@@ -1,6 +1,3 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-
 import json
 import sys
 import os
@@ -9,12 +6,16 @@ from typing import Optional
 import requests
 import google.generativeai as genai
 from logger import get_logger
+from thefuzz import process
+import concurrent.futures
+import time
+
 logger = get_logger("KnowMyGame")
 
 # Load Configuration
 def get_config_path():
-    if getattr(sys, 'frozen', False):  # True when running as .exe
-        base_path = getattr(sys, '_MEIPASS', os.path.abspath("."))
+    if getattr(sys, 'frozen', False):
+        base_path = os.path.dirname(sys.executable)
     else:
         base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, "config.json")
@@ -36,26 +37,22 @@ def load_plugin_config():
 config = load_plugin_config()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# Data Types
 Response = dict[bool, Optional[str]]
 
-# LOG_FILE = os.path.join(os.environ.get("USERPROFILE", "."), 'python_plugin.log')
-# logger.basicConfig(filename=LOG_FILE, level=logger.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+def safe_generate_content(model, prompt, timeout=8):
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(model.generate_content, prompt)
+            return future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        raise TimeoutError("Gemini AI call timed out")
 
 def main():
-    # print("List of models that support generateContent:")
-    # for model in genai.list_models():
-    #     # The correct attribute is supported_generation_methods
-    #     if "generateContent" in model.supported_generation_methods:
-    #         print(f"Name: {model.name}")
-    #         print(f"Description: {model.description}")
-    #         print("-" * 20)
-
     TOOL_CALLS_PROPERTY = 'tool_calls'
     CONTEXT_PROPERTY = 'messages'
     SYSTEM_INFO_PROPERTY = 'system_info'
     FUNCTION_PROPERTY = 'func'
-    PARAMS_PROPERTY = 'properties'
+    PARAMS_PROPERTY = 'params'
     INITIALIZE_COMMAND = 'initialize'
     SHUTDOWN_COMMAND = 'shutdown'
     ERROR_MESSAGE = 'Plugin Error!'
@@ -195,50 +192,95 @@ def execute_shutdown_command() -> dict:
     return generate_success_response('shutdown success.')
 
 def execute_game_price_rating(params: dict = None, context: dict = None, system_info: dict = None) -> dict:
+    logger.info(f"Params received in get_game_price_rating: {params}")
     game_name = params.get("game_name")
     if not game_name:
         return generate_failure_response("Missing 'game_name' parameter.")
 
     try:
         search_url = f"https://store.steampowered.com/api/storesearch/?term={game_name}&cc=us&l=en"
-        result = requests.get(search_url).json()
-        if not result["items"]:
+        response = requests.get(search_url, timeout=5)
+        #logger.info(f"Steam API search response: {response.status_code} {response.text}")
+        result = response.json()
+        items = result.get("items", [])
+        if not items:
             return generate_failure_response("Game not found on Steam.")
 
-        app_id = result["items"][0]["id"]
+        name_map = {item['name']: item for item in items}
+        best, score = process.extractOne(game_name, name_map.keys())
+        if score < 60:
+            return generate_failure_response("Best match is too weak, game not found.")
+
+        item = name_map[best]
+        app_id = item["id"]
+
         details_url = f"https://store.steampowered.com/api/appdetails/?appids={app_id}"
-        details = requests.get(details_url).json()
+        details_response = requests.get(details_url, timeout=5)
+        #logger.info(f"Steam API details response: {details_response.status_code} {details_response.text}")
+        details = details_response.json()
         game_data = details[str(app_id)]["data"]
 
         price_info = game_data.get("price_overview", {})
         price = price_info.get("final_formatted", "Free" if game_data.get("is_free") else "N/A")
         rating = game_data.get("metacritic", {}).get("score", "No rating")
+        release_date = game_data.get('release_date', {}).get('date', 'Unknown')
+        genres = ', '.join([g['description'] for g in game_data.get('genres', [])])
+        developer = ', '.join(game_data.get('developers', []))
+        publisher = ', '.join(game_data.get('publishers', []))
+        short_desc = game_data.get('short_description', '')
+        store_link = f"https://store.steampowered.com/app/{app_id}/"
 
-        return generate_success_response(f"Game: {game_name}\\nPrice: {price}\\nRating: {rating}")
+        message = (
+            f"Game: {game_data['name']}\n"
+            f"Price: {price}\n"
+            f"Rating: {rating}\n"
+            f"Release Date: {release_date}\n"
+            f"Genres: {genres}\n"
+            f"Developer: {developer}\n"
+            f"Publisher: {publisher}\n"
+            f"Description: {short_desc}\n"
+            f"Store: {store_link}"
+        )
+        return generate_success_response(message)
     except Exception as e:
         return generate_failure_response(str(e))
 
 def execute_game_settings(params: dict = None, context: dict = None, system_info: dict = None) -> dict:
     game_name = params.get("game_name")
-    if not game_name or not system_info:
-        return generate_failure_response("Missing 'game_name' or 'system_info'.")
+
+    if not game_name:
+        return generate_failure_response("Missing 'game_name'.")
+
+    # If system_info is a string (as sent by G-Assist), extract some info or include it directly
+    if isinstance(system_info, str):
+        formatted_specs = f"System Info:\n{system_info}"
+    elif isinstance(system_info, dict):
+        formatted_specs = (
+            f"CPU: {system_info.get('cpu', 'Unknown')}\n"
+            f"GPU: {system_info.get('gpu', 'Unknown')}\n"
+            f"RAM: {system_info.get('ram', 'Unknown')}"
+        )
+    else:
+        return generate_failure_response("Invalid or missing 'system_info'.")
 
     try:
         prompt = (
-            f"Given the following system specs:\\n"
-            f"CPU: {system_info.get('cpu')}\\n"
-            f"GPU: {system_info.get('gpu')}\\n"
-            f"RAM: {system_info.get('ram')}\\n"
+            f"{formatted_specs}\n\n"
             f"Recommend optimal graphics settings for the game '{game_name}' "
             f"that balance visual quality and performance."
         )
 
-        model = genai.GenerativeModel("models/gemini-2.0-flash-thinking-exp-1219")
-        response = model.generate_content(prompt)
+        model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
+        start = time.time()
+        response = safe_generate_content(model, prompt)
+        logger.info(f'Gemini response time: {time.time() - start:.2f} seconds')
 
         return generate_success_response(response.text.strip())
+    except TimeoutError:
+        return generate_failure_response("Gemini AI call timed out.")
     except Exception as e:
         return generate_failure_response(str(e))
+
 
 def execute_video_walkthrough(params: dict = None, context: dict = None, system_info: dict = None) -> dict:
     game_name = params.get("game_name")
@@ -251,10 +293,14 @@ def execute_video_walkthrough(params: dict = None, context: dict = None, system_
         search_query = f"{game_name} walkthrough {question}"
         prompt = f"Find the best YouTube video for this game query: '{search_query}'. Include a timestamp and video link."
 
-        model = genai.GenerativeModel("models/gemini-2.0-flash-thinking-exp-1219")
-        ai_response = model.generate_content(prompt)
+        model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
+        start = time.time()
+        ai_response = safe_generate_content(model, prompt)
+        logger.info(f'Gemini response time: {time.time() - start:.2f} seconds')
 
         return generate_success_response(ai_response.text.strip())
+    except TimeoutError:
+        return generate_failure_response("Gemini AI call timed out.")
     except Exception as e:
         return generate_failure_response(str(e))
 

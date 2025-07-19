@@ -1,6 +1,6 @@
 {
   "manifestVersion": 1,
-  "executable": "./KnowMyGame.exe",
+  "executable": "./g-assist-plugin-knowmygame.exe",
   "persistent": true,
   "functions": [
     {
