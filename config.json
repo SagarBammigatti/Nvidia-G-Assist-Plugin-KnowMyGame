@@ -1,6 +1,6 @@
 {
   "env": {
-    "GEMINI_API_KEY": "AIzaSyAw_Po9CV8pzdGlo1fq2UhXTbA2gtEhKcQ"
+    "GEMINI_API_KEY": "YOUR_GEMINI_KEY"
   },
   "settings": {
     "log_level": "info"
